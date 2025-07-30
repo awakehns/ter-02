@@ -162,6 +162,10 @@ vm_web_preemptible = true
 
 ![ter-plan](/img/ter-plan.png)
 
+
+
+### Задание 3
+
 Перенес блок переменных первой вм из variable.tf в vms_platform.tf, блоки второй вм добавил в main.tf, vms_platform.tf, terraform.tfvars
 
 `nano main.tf`
@@ -312,6 +316,9 @@ variable "vm_db_preemptible" {
 ![ter-apply-2](/img/ter-apply-2.png)
 
 
+
+### Задание 4
+
 `nano output.tf`
 
 ```
@@ -335,6 +342,9 @@ output "instances_info" {
 ![ter-output](/img/ter-output.png)
 
 
+
+### Задание 5
+
 `nano locals.tf`
 
 ```
@@ -353,6 +363,10 @@ locals {
  
  name        = local.vm_names.db
 ```
+
+
+
+### Задание 6
 
 `nano variable.tf`
 
