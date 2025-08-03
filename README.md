@@ -425,3 +425,309 @@ metadata = {
 Успешное применение кода
 
 ![ter-apply-3](/img/ter-apply-3.png)
+
+Конечный код:
+
+main.tf
+
+```
+resource "yandex_vpc_network" "develop" {
+  name = var.network_develop_name
+}
+
+resource "yandex_vpc_subnet" "a" {
+  name           = var.subnet_a_name
+  zone           = var.default_zone
+  network_id     = yandex_vpc_network.develop.id
+  v4_cidr_blocks = var.default_cidr
+}
+resource "yandex_vpc_subnet" "b" {
+  name           = var.subnet_b_name
+  zone           = var.subnet_b_zone
+  network_id     = yandex_vpc_network.develop.id
+  v4_cidr_blocks = var.subnet_b_cidr
+}
+
+data "yandex_compute_image" "ubuntu" {
+  family = var.vm_web_family
+}
+resource "yandex_compute_instance" "platform_web" {
+  name        = local.vm_names.web
+  platform_id = var.vm_web_platform_id
+  resources {
+    cores         = var.vms_resources["web"].cores
+    memory        = var.vms_resources["web"].memory
+    core_fraction = var.vms_resources["web"].core_fraction
+  }
+  boot_disk {
+    initialize_params {
+      image_id = data.yandex_compute_image.ubuntu.image_id
+      size = var.vms_resources["web"].hdd_size
+      type = var.vms_resources["web"].hdd_type
+    }
+  }
+  scheduling_policy {
+    preemptible = var.vm_web_preemptible
+  }
+  network_interface {
+    subnet_id = yandex_vpc_subnet.a.id
+    nat       = var.vm_web_nat
+  }
+
+  metadata = var.metadata
+
+}
+
+resource "yandex_compute_instance" "platform_db" {
+  name        = local.vm_names.db
+  platform_id = var.vm_db_platform_id
+  zone        = var.vm_db_zone
+  resources {
+    cores         = var.vms_resources["db"].cores
+    memory        = var.vms_resources["db"].memory
+    core_fraction = var.vms_resources["db"].core_fraction
+  }
+  boot_disk {
+    initialize_params {
+      image_id = data.yandex_compute_image.ubuntu.image_id
+      size = var.vms_resources["db"].hdd_size
+      type = var.vms_resources["db"].hdd_type
+    }
+  }
+  scheduling_policy {
+    preemptible = var.vm_db_preemptible
+  }
+  network_interface {
+    subnet_id = yandex_vpc_subnet.b.id
+    nat       = var.vm_db_nat
+  }
+
+  metadata = var.metadata
+
+}
+```
+
+variables.tf
+
+```
+###cloud vars
+
+
+variable "vms_resources" {
+  description = "Map of VM resource configs"
+  type = map(object({
+    cores         = number
+    memory        = number
+    core_fraction = number
+    hdd_size      = number
+    hdd_type      = string
+  }))
+}
+
+variable "metadata" {
+  description = "Common metadata for all VMs"
+  type = map(any)
+}
+
+
+variable "image_id" {
+  type = string
+}
+
+variable "subnet_id" {
+  type = string
+}
+
+variable "cloud_id" {
+  type        = string
+  description = "https://cloud.yandex.ru/docs/resource-manager/operations/cloud/get-id"
+}
+
+variable "folder_id" {
+  type        = string
+  description = "https://cloud.yandex.ru/docs/resource-manager/operations/folder/get-id"
+}
+
+variable "default_zone" {
+  type        = string
+  default     = "ru-central1-a"
+  description = "https://cloud.yandex.ru/docs/overview/concepts/geo-scope"
+}
+
+variable "default_cidr" {
+  type        = list(string)
+  default     = ["10.0.1.0/24"]
+  description = "https://cloud.yandex.ru/docs/vpc/operations/subnet-create"
+}
+
+variable "network_develop_name" {
+  type        = string
+  default     = "develop"
+  description = "VPC network & subnet name"
+}
+
+variable "subnet_a_name" {
+  type        = string
+  default     = "a"
+  description = "subnet b zone"
+}
+
+variable "subnet_b_name" {
+  type        = string
+  default     = "b"
+  description = "subnet b zone"
+}
+
+variable "subnet_b_zone" {
+  type        = string
+  description = "subnet b zone"
+}
+
+variable "subnet_b_cidr" {
+  type        = list(string)
+  description = "subnet b cidr"
+}
+
+#variable "vms_ssh_root_key" {
+#  type        = string
+#  description = "ssh-keygen -t ed25519"
+#}
+
+variable "service_account_key_file" {
+  description = "path to key.json"
+  type        = string
+}
+```
+
+outputs.tf
+
+```
+output "instances_info" {
+  value = [
+    for instance in [
+      yandex_compute_instance.platform_web,
+      yandex_compute_instance.platform_db
+    ] : {
+      instance_name = instance.name
+      external_ip   = instance.network_interface[0].nat_ip_address
+      fqdn          = instance.fqdn
+    }
+  ]
+}
+```
+
+locals.tf
+
+```
+locals {
+  vm_names = {
+    web = "${var.vm_web_name}-prod"
+    db  = "${var.vm_db_name}-prod"
+  }
+}
+
+```
+
+vms_platform.tf
+
+```
+
+###vm web vars
+
+
+variable "vm_web_platform_id" {
+  type        = string
+  description = "ID image"
+}
+
+variable "vm_web_family" {
+  type        = string
+  description = "family"
+}
+
+variable "vm_web_name" {
+  type        = string
+  description = "VM name"
+}
+
+#variable "vm_web_cores" {
+#  type        = number
+#  description = "cores"
+#}
+
+#variable "vm_web_memory" {
+#  type        = number
+#  description = "memory"
+#}
+
+#variable "vm_web_fraction" {
+#  type        = number
+#  description = "fraction"
+#}
+
+
+variable "vm_web_nat" {
+  type        = bool
+  default     = true
+  description = "nat"
+}
+
+variable "vm_web_preemptible" {
+  type        = bool
+  default     = true
+  description = "preemptible"
+}
+
+
+
+###vm db vars
+
+
+variable "vm_db_platform_id" {
+  type        = string
+  description = "ID image"
+}
+
+variable "vm_db_family" {
+  type        = string
+  description = "family"
+}
+
+variable "vm_db_zone" {
+  type        = string
+  description = "zone"
+}
+
+variable "vm_db_name" {
+  type        = string
+  description = "VM name"
+}
+
+#variable "vm_db_cores" {
+#  type        = number
+#  description = "cores"
+#}
+
+#variable "vm_db_memory" {
+#  type        = number
+#  description = "memory"
+#}
+
+#variable "vm_db_fraction" {
+#  type        = number
+#  description = "fraction"
+#}
+
+
+variable "vm_db_nat" {
+  type        = bool
+  default     = true
+  description = "nat"
+}
+
+variable "vm_db_preemptible" {
+  type        = bool
+  default     = true
+  description = "preemptible"
+}
+```
